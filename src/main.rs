@@ -1,8 +1,11 @@
 pub mod fastq;
 
+use fastq::FASTQ;
+
 fn main() {
     let file = "sample_input.fastq";
-    match fastq::read_lines(file) { 
+    let mut fastq_parser = FASTQ::new(file);
+    match fastq_parser.read_lines() { 
         Err(err) => eprintln!("Error: {}", err),
         Ok(res) => {
             for line in &res {

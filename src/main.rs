@@ -5,9 +5,11 @@ fn main() {
     match fastq::read_lines(file) { 
         Err(err) => eprintln!("Error: {}", err),
         Ok(res) => {
-            for line in res {
-                println!("{:}", line);
+            for line in &res {
+                println!("{}", line);
             }
+
+            println!("Resulting quality control lines: {}", res.len());
         }
     }
 }

@@ -29,18 +29,31 @@ pub fn read_lines(path: &str) -> std::io::Result<Vec<String>> {
         let bytes_read = file.read(&mut buffer).expect("Error reading file bytes into a buffer.");
         byte_offset += bytes_read;
         
-        // file.read_exact(&mut buffer).expect("Error reading file bytes into a buffer.");
         for i in 0..bytes_read {
             let &char = &buffer[i];
             match char {
                 b'\n' => {
                     line_idx += 1;
                     base_pair_idx = 0;
-                    lines.push(String::new());
+
+                    // cycle the row counts to avoid expensive mod op
+                    if line_idx == 4 { 
+                        line_idx = 0;
+
+                        // we expect another row if this is not the last byte of the file
+                        if byte_offset < total_bytes || i < bytes_read - 1 { 
+                            lines.push(String::new()); 
+                        }
+                    }
                 },
                 _ => {
-                    lines[line_idx].push(char as char);
-                    base_pair_idx += 1;
+                    // we only care about the line with the quality info
+                    // don't waste compute collecting and counting the rest of bytes
+                    if line_idx == 3 { 
+                        let output_len = lines.len();
+                        lines[output_len - 1].push(char as char);
+                        base_pair_idx += 1;
+                    }
                 }
             };
         }

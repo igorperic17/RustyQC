@@ -1,4 +1,6 @@
 use std::{fs::File, io::Read, collections::HashMap, cmp::max};
+use plotters::prelude::*;
+use std::process::Command;
 
 pub enum Nucleotide {
     T,
@@ -36,8 +38,8 @@ impl QualityComputeEngine {
         }
     }
 
-    pub fn get_qualities(self) -> Vec<f64> {
-        let mut result = vec![0f64; self.max_length];
+    pub fn get_qualities(&self) -> Vec<f64> {
+        let mut result = vec![0f64; self.max_length + 1];
         for length in self.qualities.keys().into_iter() {
             let s: u64 = self.qualities[length].iter().map(|x| *x as u64).sum();
             let n: usize = self.qualities[length].len();
@@ -77,6 +79,9 @@ impl FASTQ {
             reads: vec![],
             quality_compute: QualityComputeEngine::new(),
         }
+    }
+    pub fn get_qualities(&self) -> Vec<f64> {
+        self.quality_compute.get_qualities()
     }
 
     pub fn read_lines(&mut self) -> std::io::Result<()> {
@@ -131,6 +136,7 @@ impl FASTQ {
                         if line_idx == 3 { 
                             let current_length = self.reads.len();
                             self.reads[current_length - 1].qualities.push(char - 33);
+                            self.quality_compute.feed(base_pair_idx, char - 33);
                             base_pair_idx += 1;
                         }
                     }
@@ -138,6 +144,44 @@ impl FASTQ {
             }
 
         }
+
+        Ok(())
+    }
+
+    
+    pub fn plot_line_chart(self, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+
+        let data: Vec<(f64, f64)> = self.get_qualities().iter().enumerate().map(|(index, &value)| (index as f64, value)).collect();
+        println!("DATA: {:?}", data);
+        
+        // Set up the drawing area
+        let root = BitMapBackend::new(filename, (800, 600)).into_drawing_area();
+        root.fill(&WHITE)?;
+
+        // Create a chart context
+        let mut chart = ChartBuilder::on(&root)
+            .caption("Read Quality Plot", ("sans-serif", 30).into_font())
+            .margin(10)
+            .x_label_area_size(30)
+            .y_label_area_size(30)
+            .build_cartesian_2d(0.0..(data.len() as f64), 0.0..50.0).unwrap();
+
+        // Create a line series
+        chart
+            .configure_mesh()
+            // .disable_x_mesh()
+            // .disable_y_mesh()
+            .x_label_formatter(&|x| format!("{}", x))
+            // .y_label_formatter(&|y| format!("{}", y))
+            .draw()?;
+
+        chart.draw_series(LineSeries::new(
+            data,
+            &RED,
+        )).unwrap();
+
+        // Open the image using the default system image viewer
+        // Command::new("xdg-open").arg(filename).output().ok();
 
         Ok(())
     }

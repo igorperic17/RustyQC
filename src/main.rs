@@ -13,6 +13,14 @@ fn main() {
             // }
 
             println!("Resulting quality control lines: {}", fastq_parser.reads.len());
+
+            let qualities = fastq_parser.get_qualities();
+            println!("MultiQC: {:?}", qualities);
+            println!("MultiQC (count): {:?}", qualities.len());
+
+            if let Err(err) = fastq_parser.plot_line_chart("plot.png") {
+                println!("Error saving the plot: {}", err);
+            }
         }
     }
 }

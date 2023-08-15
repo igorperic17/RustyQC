@@ -1,6 +1,6 @@
-use std::{fs::File, io::Read};
+use std::{fs::File, io::Read, collections::HashMap, cmp::max};
 
-enum Nucleotide {
+pub enum Nucleotide {
     T,
     C,
     G,
@@ -8,13 +8,65 @@ enum Nucleotide {
 }
 
 pub struct SequencingRead {
-    bases: Vec<Nucleotide>,
-    qualities: Vec<u8>
+    pub bases: Vec<Nucleotide>,
+    pub qualities: Vec<u8>
+}
+
+impl SequencingRead {
+    pub fn new() -> Self {
+        SequencingRead {
+            bases: vec![],
+            qualities: vec![]
+        }
+    }
+}
+
+pub struct QualityComputeEngine {
+    // resulting_qualities: Vec<u8>,
+    pub qualities: Box<HashMap<usize, Vec<u8>>>,
+    max_length: usize
+}
+
+impl QualityComputeEngine {
+
+    pub fn new() -> Self {
+        QualityComputeEngine {
+            qualities: Box::new(HashMap::new()),
+            max_length: 0
+        }
+    }
+
+    pub fn get_qualities(self) -> Vec<f64> {
+        let mut result = vec![0f64; self.max_length];
+        for length in self.qualities.keys().into_iter() {
+            let s: u64 = self.qualities[length].iter().map(|x| *x as u64).sum();
+            let n: usize = self.qualities[length].len();
+            result[*length] = (s as f64) / (n as f64);
+
+        };
+        result
+    }
+
+    pub fn feed(&mut self, length: usize, quality: u8) {
+        match self.qualities.get_mut(&length) {
+            Some(length_qualities) => { length_qualities.push(quality); },
+            None => { 
+                self.qualities.insert(length, vec![quality]); 
+                self.max_length = max(self.max_length, length);
+            }
+        }
+    }
+
 }
 
 pub struct FASTQ {
     file_path: &'static str,
-    reads: Vec<SequencingRead>
+
+    // list of individual reads and qualities
+    pub reads: Vec<SequencingRead>,
+
+    // a single quality score for various read lengts averaged over all of the reads
+    quality_compute: QualityComputeEngine
 }
 
 impl FASTQ {
@@ -22,22 +74,23 @@ impl FASTQ {
     pub fn new(path: &'static str) -> Self {
         FASTQ { 
             file_path: path, 
-            reads: vec![] 
+            reads: vec![],
+            quality_compute: QualityComputeEngine::new(),
         }
     }
 
-    pub fn read_lines(&mut self) -> std::io::Result<Vec<String>> {
+    pub fn read_lines(&mut self) -> std::io::Result<()> {
         let mut file = File::open(self.file_path)?;
         let total_bytes: usize = file.metadata()?.len() as usize;
         println!("The input file is {:?} bytes long.", total_bytes);
 
         // TODO: split the reading in multiple readers based on CPU count
 
-        // let reader = BufReader::new(file);
-        let mut lines = vec![String::new()];
-
         // the current line we're reading in this batch
         let mut line_idx: usize = 0;
+
+        // add initial placeholder for the reads
+        self.reads.push(SequencingRead::new());
 
         // while reading quality scores, this will be the index in the line
         // representing the current base index inside the read
@@ -67,8 +120,8 @@ impl FASTQ {
                             line_idx = 0;
 
                             // we expect another row if this is not the last byte of the file
-                            if byte_offset < total_bytes || i < bytes_read - 1 { 
-                                lines.push(String::new()); 
+                            if byte_offset < total_bytes || i < bytes_read - 1 {
+                                self.reads.push(SequencingRead::new());
                             }
                         }
                     },
@@ -76,8 +129,8 @@ impl FASTQ {
                         // we only care about the line with the quality info
                         // don't waste compute collecting and counting the rest of bytes
                         if line_idx == 3 { 
-                            let output_len = lines.len();
-                            lines[output_len - 1].push(char as char);
+                            let current_length = self.reads.len();
+                            self.reads[current_length - 1].qualities.push(char - 33);
                             base_pair_idx += 1;
                         }
                     }
@@ -86,7 +139,7 @@ impl FASTQ {
 
         }
 
-        Ok(lines)
+        Ok(())
     }
 
 }

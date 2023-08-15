@@ -7,12 +7,12 @@ fn main() {
     let mut fastq_parser = FASTQ::new(file);
     match fastq_parser.read_lines() { 
         Err(err) => eprintln!("Error: {}", err),
-        Ok(res) => {
-            for line in &res {
-                println!("{}", line);
-            }
+        _ => {
+            // for line in &fastq_parser.reads {
+            //     println!("{:?}", line.qualities);
+            // }
 
-            println!("Resulting quality control lines: {}", res.len());
+            println!("Resulting quality control lines: {}", fastq_parser.reads.len());
         }
     }
 }
